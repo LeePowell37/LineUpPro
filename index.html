@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lineup Pro - Fixed Selection</title>
+    <title>Lineup Pro - Fairness Engine</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -28,14 +28,13 @@
 
     <div id="setup-view">
         <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4 text-[11px] text-blue-200/70">
-            <b>Safety:</b> Add <b>(No PC)</b> to players who cannot Pitch or Catch.
+            <b>Auto-Fill Logic:</b> Prioritizes players who have sat the most. No player will sit > 2 times if possible.
         </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm"></textarea>
         <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg">Start Game Plan</button>
     </div>
 
     <div id="main-view" class="hidden">
-        
         <div class="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 mb-6">
             <button id="btn-fielding" onclick="setMode('fielding')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase tab-active">Fielding</button>
             <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting</button>
@@ -61,7 +60,7 @@
         </div>
         
         <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic">Playing Time & Stars</h3>
+            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic tracking-widest">Team Fairness Tracker</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
@@ -81,7 +80,7 @@
         const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS'];
         const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P (No PC)\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        const saved = localStorage.getItem('softball_smart_v10');
+        const saved = localStorage.getItem('softball_v11_fairness');
         if (saved) {
             const data = JSON.parse(saved);
             document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
@@ -94,7 +93,7 @@
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_smart_v10', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
+            localStorage.setItem('softball_v11_fairness', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
         }
 
         function startApp() {
@@ -113,6 +112,18 @@
 
         function autoFillInning() {
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
+            
+            // Calculate how many times everyone has sat out TOTAL across ALL innings so far
+            const benchCounts = {};
+            players.forEach(p => {
+                let satCount = 0;
+                for (let i = 1; i <= 6; i++) {
+                    const inn = fieldingData[i] || {};
+                    if (i !== currentInning && !Object.values(inn).includes(p)) satCount++;
+                }
+                benchCounts[p] = satCount;
+            });
+
             POSITIONS.forEach(pos => {
                 if (!fieldingData[currentInning][pos]) {
                     const taken = Object.values(fieldingData[currentInning]);
@@ -120,9 +131,12 @@
                     if (pos === 'P' || pos === 'C') avail = avail.filter(p => !p.toLowerCase().includes("(no pc)"));
                     
                     if (avail.length > 0) {
-                        if (INFIELD.includes(pos)) {
-                            avail.sort((a, b) => (starredPlayers.includes(b) ? 1 : -1));
-                        }
+                        // Sort by Bench Count (highest first) then by Star status for Infield
+                        avail.sort((a, b) => {
+                            if (benchCounts[b] !== benchCounts[a]) return benchCounts[b] - benchCounts[a];
+                            if (INFIELD.includes(pos)) return (starredPlayers.includes(b) ? 1 : -1);
+                            return 0;
+                        });
                         fieldingData[currentInning][pos] = avail[0];
                     }
                 }
@@ -143,17 +157,14 @@
 
             if (activeMode === 'fielding') {
                 const currentSet = fieldingData[currentInning] || {};
-                const takenInInning = Object.values(currentSet).filter(name => name !== ""); // The fix is here
-
+                const taken = Object.values(currentSet).filter(n => n !== "");
                 POSITIONS.forEach(pos => {
                     const div = document.createElement('div');
                     div.className = 'card';
                     let opts = `<option value="">-- Bench --</option>`;
                     players.forEach(p => {
                         const noPC = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
-                        const isAlreadyPlayingOtherPos = takenInInning.includes(p) && currentSet[pos] !== p;
-                        
-                        if (!noPC && !isAlreadyPlayingOtherPos) {
+                        if (!noPC && (!taken.includes(p) || currentSet[pos] === p)) {
                             opts += `<option value="${p}" ${currentSet[pos] === p ? 'selected' : ''}>${p}</option>`;
                         }
                     });
@@ -161,18 +172,12 @@
                     flist.appendChild(div);
                 });
             } else {
-                const takenInOrder = Object.values(battingData).filter(name => name !== "");
                 players.forEach((_, i) => {
                     const slot = i+1;
                     const div = document.createElement('div');
                     div.className = 'card';
                     let opts = `<option value="">-- Select --</option>`;
-                    players.forEach(p => {
-                        const isAlreadyInOrder = takenInOrder.includes(p) && battingData[slot] !== p;
-                        if (!isAlreadyInOrder) {
-                            opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`;
-                        }
-                    });
+                    players.forEach(p => opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`);
                     div.innerHTML = `<div class="pos-label">#${slot}</div><select onchange="updateBat('${slot}', this.value)">${opts}</select>`;
                     blist.appendChild(div);
                 });
@@ -198,14 +203,14 @@
             list.innerHTML = "";
             players.forEach(player => {
                 let played = [];
+                let sitCount = 0;
                 let sittingConsecutive = 0;
-                let foundThisInning = false;
                 
-                for (let i = 1; i <= currentInning; i++) {
+                for (let i = 1; i <= 6; i++) {
                     const inn = fieldingData[i] || {};
                     let found = false;
                     for (const pos in inn) { if (inn[pos] === player) { played.push(pos); found = true; } }
-                    if (!found) sittingConsecutive++; else sittingConsecutive = 0;
+                    if (!found) { sitCount++; sittingConsecutive++; } else { sittingConsecutive = 0; }
                 }
 
                 const isStarred = starredPlayers.includes(player);
@@ -214,7 +219,7 @@
                 row.innerHTML = `
                     <div class="flex items-center gap-2">
                         <button onclick="toggleStar('${player}')" class="text-sm ${isStarred ? 'star-active' : 'text-zinc-700'}">★</button>
-                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player} ${sittingConsecutive >= 2 ? '<span class="bench-warn">!! BENCH</span>' : ''}</div>
+                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player} <span class="text-[9px] text-zinc-600 font-normal">(${sitCount} sits)</span> ${sittingConsecutive >= 2 ? '<span class="bench-warn">!! CONSECUTIVE</span>' : ''}</div>
                     </div>
                     <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
                 list.appendChild(row);
