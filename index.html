@@ -10,7 +10,7 @@
         .card { background-color: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
         select { background-color: #09090b; color: white; border: 1px solid #3f3f46; border-radius: 8px; padding: 10px; flex-grow: 1; font-size: 16px; outline: none; -webkit-appearance: none; }
         select:focus { border-color: #ea580c; }
-        .pos-label { width: 45px; font-weight: 800; color: #ea580c; text-align: center; font-size: 13px; transform: italic; }
+        .pos-label { width: 45px; font-weight: 800; color: #ea580c; text-align: center; font-size: 13px; font-style: italic; }
         .hidden { display: none; }
         .tab-active { background-color: #ea580c !important; color: white !important; border-color: #f97316 !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -20,12 +20,12 @@
 
     <div class="flex justify-between items-center mb-4">
         <h1 class="text-xl font-black text-orange-600 italic tracking-tighter">LINEUP PRO</h1>
-        <button onclick="clearData()" class="text-[10px] font-bold text-zinc-600 uppercase border border-zinc-800 px-2 py-1 rounded">Reset Season</button>
+        <button onclick="clearData()" class="text-[10px] font-bold text-zinc-600 uppercase border border-zinc-800 px-2 py-1 rounded">Reset All</button>
     </div>
 
     <div id="setup-view">
-        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">Team Roster (One per line)</label>
-        <textarea id="roster-input" class="w-full h-64 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600" placeholder="Enter names..."></textarea>
+        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">Team Roster</label>
+        <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm" placeholder="Enter names..."></textarea>
         <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform">Save & Start Game</button>
     </div>
 
@@ -60,23 +60,28 @@
     <script>
         let players = [];
         let currentInning = 1;
-        let activeMode = 'fielding'; // 'fielding' or 'batting'
+        let activeMode = 'fielding';
         let assignments = {}; 
         let battingOrder = {};
         const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'LC', 'RC', 'RF'];
+        
+        // YOUR ROSTER
+        const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        // Load
-        const saved = localStorage.getItem('softball_pro_v3');
+        // Initial Load
+        const saved = localStorage.getItem('softball_final_v4');
         if (saved) {
             const data = JSON.parse(saved);
-            document.getElementById('roster-input').value = data.roster || "";
+            document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
             assignments = data.assignments || {};
             battingOrder = data.batting || {};
+        } else {
+            document.getElementById('roster-input').value = DEFAULT_ROSTER;
         }
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_pro_v3', JSON.stringify({ roster, assignments, batting: battingOrder }));
+            localStorage.setItem('softball_final_v4', JSON.stringify({ roster, assignments, batting: battingOrder }));
         }
 
         function startApp() {
@@ -109,7 +114,7 @@
         }
 
         function render() {
-            // Update Inning Tab Visuals
+            // Update Tab Styling
             document.querySelectorAll('.inn-btn').forEach((btn, idx) => {
                 btn.classList.toggle('tab-active', (idx + 1) === currentInning);
                 btn.classList.toggle('text-zinc-500', (idx + 1) !== currentInning);
@@ -120,12 +125,13 @@
             
             const currentSet = activeMode === 'fielding' ? (assignments[currentInning] || {}) : battingOrder;
             const taken = Object.values(currentSet);
-            const itemsToLoop = activeMode === 'fielding' ? POSITIONS : Array.from({length: 12}, (_, i) => i + 1);
+            const itemsToLoop = activeMode === 'fielding' ? POSITIONS : Array.from({length: players.length || 12}, (_, i) => i + 1);
 
             itemsToLoop.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'card';
-                const label = `<div class="pos-label">${activeMode === 'fielding' ? item : '#' + item}</div>`;
+                const displayLabel = activeMode === 'fielding' ? item : '#' + item;
+                const label = `<div class="pos-label">${displayLabel}</div>`;
                 
                 let options = `<option value="">-- Empty --</option>`;
                 players.forEach(p => {
@@ -140,7 +146,7 @@
                 container.appendChild(div);
             });
 
-            // Bench logic
+            // Bench
             const bench = players.filter(p => !taken.includes(p));
             document.getElementById('bench-list').innerHTML = bench.map(p => 
                 `<span class="px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[10px] font-bold text-zinc-500">${p}</span>`
@@ -159,8 +165,8 @@
         }
 
         function clearData() {
-            if (confirm("Reset everything for a new game?")) {
-                localStorage.removeItem('softball_pro_v3');
+            if (confirm("Reset season data?")) {
+                localStorage.removeItem('softball_final_v4');
                 location.reload();
             }
         }
