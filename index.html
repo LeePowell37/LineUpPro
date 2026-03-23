@@ -5,138 +5,125 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Softball Lineup Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; }
-        select { background-color: #18181b; color: white; border: 1px solid #27272a; border-radius: 8px; padding: 8px; width: 100%; font-size: 16px; }
-        .card { background-color: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 12px; margin-bottom: 8px; }
-        .btn-orange { background-color: #ea580c; color: white; font-weight: bold; padding: 12px; border-radius: 12px; width: 100%; }
-        .tab-active { background-color: #ea580c; color: white; }
+        body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        .card { background-color: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 10px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+        select { background-color: #09090b; color: white; border: 1px solid #3f3f46; border-radius: 8px; padding: 10px; flex-grow: 1; font-size: 16px; outline: none; }
+        select:focus { border-color: #ea580c; }
+        .pos-label { width: 40px; font-weight: 800; color: #ea580c; text-align: center; font-size: 14px; }
+        .hidden { display: none; }
     </style>
 </head>
-<body class="p-4 max-w-md mx-auto">
-    <div id="app">
-        <h1 class="text-xl font-bold mb-4 text-orange-500 italic">LINEUP PRO</h1>
-        <div id="setup-view">
-            <p class="text-sm text-zinc-400 mb-2">Enter Roster (One name per line):</p>
-            <textarea id="roster-input" class="w-full h-48 bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4 outline-none focus:border-orange-500"></textarea>
-            <button onclick="startApp()" class="btn-orange">Start Game</button>
+<body class="p-4 max-w-md mx-auto pb-24">
+
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-xl font-black text-orange-600 italic tracking-tighter">LINEUP PRO</h1>
+        <div id="inning-badge" class="hidden bg-zinc-800 px-3 py-1 rounded-full text-xs font-bold border border-zinc-700">INNING 1</div>
+    </div>
+
+    <div id="setup-view">
+        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">Team Roster</label>
+        <textarea id="roster-input" class="w-full h-64 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600" placeholder="Enter names..."></textarea>
+        <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform">Start Game</button>
+    </div>
+
+    <div id="main-view" class="hidden">
+        <div id="lineup-container"></div>
+        
+        <div class="mt-8 p-6 bg-zinc-900/50 border border-dashed border-zinc-800 rounded-3xl text-center">
+            <h3 class="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">On the Bench</h3>
+            <div id="bench-list" class="flex flex-wrap gap-2 justify-center"></div>
         </div>
 
-        <div id="main-view" class="hidden">
-            <div class="flex justify-between items-center mb-4">
-                <button onclick="showSetup()" class="text-xs text-zinc-500 underline">Edit Roster</button>
-                <div id="inning-display" class="font-bold text-orange-500">Inning 1</div>
-                <button onclick="clearData()" class="text-xs text-red-500">Reset</button>
-            </div>
-            
-            <div id="lineup-container"></div>
-            
-            <div class="mt-6 p-4 bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl text-center">
-                <h3 class="text-xs font-bold text-zinc-500 uppercase mb-2">Bench</h3>
-                <div id="bench-list" class="flex flex-wrap gap-2 justify-center"></div>
-            </div>
-
-            <div class="fixed bottom-0 left-0 right-0 p-4 bg-zinc-900 border-t border-zinc-800 flex justify-between gap-4">
-                <button onclick="changeInning(-1)" class="bg-zinc-800 px-4 py-2 rounded-lg text-sm">Prev</button>
-                <button onclick="changeInning(1)" class="bg-zinc-800 px-4 py-2 rounded-lg text-sm">Next</button>
-            </div>
+        <div class="fixed bottom-0 left-0 right-0 p-4 bg-zinc-900/90 backdrop-blur-md border-t border-zinc-800 flex justify-between items-center max-w-md mx-auto">
+            <button onclick="changeInning(-1)" class="p-3 text-zinc-400 font-bold text-xs uppercase">Prev</button>
+            <button onclick="showSetup()" class="p-3 text-zinc-500 font-bold text-xs uppercase underline">Roster</button>
+            <button onclick="changeInning(1)" class="p-3 text-orange-500 font-bold text-xs uppercase">Next</button>
         </div>
     </div>
 
     <script>
         let players = [];
         let currentInning = 1;
-        let assignments = {}; // { inning: { position: playerName } }
+        let assignments = {}; 
         const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'LC', 'RC', 'RF'];
+        const DEFAULT_ROSTER = `Charlotte D\nAnaya P\nEmma P\nGenevieve H\nGianna C\nLily P\nMarielle N\nReagan S\nSienna T\nTaylor G\nTeagan B\nTeagan M`;
 
-        // Load Data
-        const saved = localStorage.getItem('softball_data');
+        // Initial Load
+        const saved = localStorage.getItem('softball_storage_v2');
         if (saved) {
             const data = JSON.parse(saved);
-            document.getElementById('roster-input').value = data.roster || '';
+            document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
             assignments = data.assignments || {};
+        } else {
+            document.getElementById('roster-input').value = DEFAULT_ROSTER;
         }
 
         function save() {
-            const rosterText = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_data', JSON.stringify({ roster: rosterText, assignments }));
+            const roster = document.getElementById('roster-input').value;
+            localStorage.setItem('softball_storage_v2', JSON.stringify({ roster, assignments }));
         }
 
         function startApp() {
-            const text = document.getElementById('roster-input').value;
-            players = text.split('\n').map(p => p.trim()).filter(p => p !== '');
-            if (players.length === 0) return alert("Enter some names first!");
+            const raw = document.getElementById('roster-input').value;
+            players = raw.split('\n').map(n => n.trim()).filter(n => n !== "");
+            if (players.length === 0) return alert("Add some players first!");
             
             document.getElementById('setup-view').classList.add('hidden');
             document.getElementById('main-view').classList.remove('hidden');
-            renderInning();
+            document.getElementById('inning-badge').classList.remove('hidden');
+            render();
             save();
         }
 
         function showSetup() {
             document.getElementById('setup-view').classList.remove('hidden');
             document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('inning-badge').classList.add('hidden');
         }
 
-        function changeInning(step) {
-            currentInning = Math.max(1, Math.min(6, currentInning + step));
-            renderInning();
+        function changeInning(dir) {
+            currentInning = Math.max(1, Math.min(6, currentInning + dir));
+            render();
         }
 
-        function renderInning() {
-            document.getElementById('inning-display').innerText = `Inning ${currentInning}`;
+        function render() {
+            document.getElementById('inning-badge').innerText = `INNING ${currentInning}`;
             const container = document.getElementById('lineup-container');
-            container.innerHTML = '';
+            container.innerHTML = "";
             
-            const inningData = assignments[currentInning] || {};
-            const assignedThisInning = Object.values(inningData);
+            const currentAssignments = assignments[currentInning] || {};
+            const takenPlayers = Object.values(currentAssignments);
 
             POSITIONS.forEach(pos => {
-                const card = document.createElement('div');
-                card.className = 'card flex items-center gap-3';
+                const div = document.createElement('div');
+                div.className = 'card';
+                const label = `<div class="pos-label">${pos}</div>`;
                 
-                const label = document.createElement('div');
-                label.className = 'w-10 font-bold text-orange-500';
-                label.innerText = pos;
-                
-                const select = document.createElement('select');
-                select.innerHTML = `<option value="">-- Select --</option>`;
-                
+                let options = `<option value="">-- Empty --</option>`;
                 players.forEach(p => {
-                    // Only show player if they aren't assigned elsewhere in THIS inning
-                    if (!assignedThisInning.includes(p) || inningData[pos] === p) {
-                        const opt = document.createElement('option');
-                        opt.value = p;
-                        opt.innerText = p;
-                        if (inningData[pos] === p) opt.selected = true;
-                        select.appendChild(opt);
+                    const isPickedElsewhere = takenPlayers.includes(p) && currentAssignments[pos] !== p;
+                    if (!isPickedElsewhere) {
+                        const selected = currentAssignments[pos] === p ? 'selected' : '';
+                        options += `<option value="${p}" ${selected}>${p}</option>`;
                     }
                 });
 
-                select.onchange = (e) => {
-                    if (!assignments[currentInning]) assignments[currentInning] = {};
-                    assignments[currentInning][pos] = e.target.value;
-                    save();
-                    renderInning(); // Refresh to update "available" lists
-                };
-
-                card.appendChild(label);
-                card.appendChild(select);
-                container.appendChild(card);
+                div.innerHTML = `${label}<select onchange="updatePos('${pos}', this.value)">${options}</select>`;
+                container.appendChild(div);
             });
 
-            // Update Bench
-            const bench = players.filter(p => !assignedThisInning.includes(p));
-            const benchList = document.getElementById('bench-list');
-            benchList.innerHTML = bench.map(p => `<span class="px-3 py-1 bg-zinc-800 rounded-full text-xs text-zinc-400 border border-zinc-700">${p}</span>`).join('');
+            const bench = players.filter(p => !takenPlayers.includes(p));
+            document.getElementById('bench-list').innerHTML = bench.map(p => 
+                `<span class="px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-full text-xs text-zinc-400">${p}</span>`
+            ).join('');
         }
 
-        function clearData() {
-            if (confirm("Delete everything?")) {
-                localStorage.clear();
-                location.reload();
-            }
+        function updatePos(pos, val) {
+            if (!assignments[currentInning]) assignments[currentInning] = {};
+            assignments[currentInning][pos] = val;
+            save();
+            render();
         }
     </script>
 </body>
