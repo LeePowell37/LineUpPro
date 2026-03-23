@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lineup Pro - Ultimate Version</title>
+    <title>Lineup Pro - Variety Rule</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -28,17 +28,16 @@
 
     <div id="setup-view">
         <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4 text-[11px] text-blue-200/70">
-            <b>Pro Tip:</b> Use the ★ in the summary to prioritize "Starred" players for Infield spots during Auto-Fill.
+            <b>Variety Rule:</b> Auto-Fill prevents any player from playing the same position more than twice.
         </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm"></textarea>
         <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95">Go to Game Plan</button>
     </div>
 
     <div id="main-view" class="hidden">
-        
         <div class="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 mb-6">
             <button id="btn-fielding" onclick="setMode('fielding')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase tab-active">Fielding</button>
-            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting Order</button>
+            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting</button>
         </div>
 
         <div id="fielding-container">
@@ -51,7 +50,7 @@
                     <button onclick="setInning(5)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">5</button>
                     <button onclick="setInning(6)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">6</button>
                 </div>
-                <button onclick="autoFillInning()" class="bg-zinc-800 text-[9px] font-bold px-3 py-2 rounded-lg border border-zinc-700 text-orange-400">AUTO-FILL</button>
+                <button onclick="autoFillInning()" class="bg-zinc-800 text-[9px] font-bold px-3 py-2 rounded-lg border border-zinc-700 text-orange-400 uppercase tracking-tighter">Auto-Fill</button>
             </div>
             <div id="fielding-list"></div>
         </div>
@@ -61,7 +60,7 @@
         </div>
         
         <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic tracking-widest text-center">Innings & Bench Summary</h3>
+            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic tracking-widest text-center">Defensive History & Fairness</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
@@ -81,7 +80,7 @@
         const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS'];
         const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P (No PC)\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        const saved = localStorage.getItem('softball_v12_fixed');
+        const saved = localStorage.getItem('softball_v13_variety');
         if (saved) {
             const data = JSON.parse(saved);
             document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
@@ -94,7 +93,7 @@
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_v12_fixed', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
+            localStorage.setItem('softball_v13_variety', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
         }
 
         function startApp() {
@@ -114,23 +113,48 @@
         function autoFillInning() {
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
             
+            // 1. Calculate how many total sits every player has
             const benchCounts = {};
             players.forEach(p => {
                 let satCount = 0;
                 for (let i = 1; i <= 6; i++) {
+                    if (i === currentInning) continue;
                     const inn = fieldingData[i] || {};
-                    if (i !== currentInning && !Object.values(inn).includes(p)) satCount++;
+                    if (!Object.values(inn).includes(p)) satCount++;
                 }
                 benchCounts[p] = satCount;
             });
 
+            // 2. Calculate how many times each player has played EACH position
+            const posHistory = {};
+            players.forEach(p => {
+                posHistory[p] = {};
+                for (let i = 1; i <= 6; i++) {
+                    if (i === currentInning) continue;
+                    const inn = fieldingData[i] || {};
+                    for (const pos in inn) {
+                        if (inn[pos] === p) {
+                            posHistory[p][pos] = (posHistory[p][pos] || 0) + 1;
+                        }
+                    }
+                }
+            });
+
             POSITIONS.forEach(pos => {
                 if (!fieldingData[currentInning][pos]) {
-                    const taken = Object.values(fieldingData[currentInning]);
-                    let avail = players.filter(p => !taken.includes(p));
-                    if (pos === 'P' || pos === 'C') avail = avail.filter(p => !p.toLowerCase().includes("(no pc)"));
+                    const takenNow = Object.values(fieldingData[currentInning]);
+                    
+                    // Filter: Not taken, not No-PC if P/C, and NOT played this pos >= 2 times already
+                    let avail = players.filter(p => {
+                        const alreadyOnField = takenNow.includes(p);
+                        const isNoPC = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
+                        const alreadyPlayedTooMuch = (posHistory[p][pos] || 0) >= 2;
+                        
+                        return !alreadyOnField && !isNoPC && !alreadyPlayedTooMuch;
+                    });
                     
                     if (avail.length > 0) {
+                        // Sort by Bench Count then Stars for Infield
                         avail.sort((a, b) => {
                             if (benchCounts[b] !== benchCounts[a]) return benchCounts[b] - benchCounts[a];
                             if (INFIELD.includes(pos)) return (starredPlayers.includes(b) ? 1 : -1);
@@ -172,7 +196,6 @@
                     flist.appendChild(div);
                 });
             } else {
-                // FIXED BATTING LOGIC: Remove taken players from other slots
                 const takenBatters = Object.values(battingData).filter(n => n !== "");
                 players.forEach((_, i) => {
                     const slot = i + 1;
@@ -211,13 +234,13 @@
             players.forEach(player => {
                 let played = [];
                 let sitTotal = 0;
-                let sittingNow = 0;
+                let sittingConsecutive = 0;
                 
                 for (let i = 1; i <= 6; i++) {
                     const inn = fieldingData[i] || {};
                     let found = false;
                     for (const pos in inn) { if (inn[pos] === player) { played.push(pos); found = true; } }
-                    if (!found) { sitTotal++; sittingNow++; } else { sittingNow = 0; }
+                    if (!found) { sitTotal++; sittingConsecutive++; } else { sittingConsecutive = 0; }
                 }
 
                 const isStarred = starredPlayers.includes(player);
