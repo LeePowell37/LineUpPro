@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lineup Pro - Fairness Engine</title>
+    <title>Lineup Pro - Ultimate Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -28,16 +28,17 @@
 
     <div id="setup-view">
         <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4 text-[11px] text-blue-200/70">
-            <b>Auto-Fill Logic:</b> Prioritizes players who have sat the most. No player will sit > 2 times if possible.
+            <b>Pro Tip:</b> Use the ★ in the summary to prioritize "Starred" players for Infield spots during Auto-Fill.
         </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm"></textarea>
-        <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg">Start Game Plan</button>
+        <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95">Go to Game Plan</button>
     </div>
 
     <div id="main-view" class="hidden">
+        
         <div class="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 mb-6">
             <button id="btn-fielding" onclick="setMode('fielding')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase tab-active">Fielding</button>
-            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting</button>
+            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting Order</button>
         </div>
 
         <div id="fielding-container">
@@ -60,12 +61,12 @@
         </div>
         
         <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic tracking-widest">Team Fairness Tracker</h3>
+            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic tracking-widest text-center">Innings & Bench Summary</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
         <div class="fixed bottom-0 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 flex justify-center max-w-md mx-auto">
-            <button onclick="showSetup()" class="px-8 py-3 bg-zinc-800 rounded-full text-zinc-400 font-bold text-xs uppercase border border-zinc-700">Edit Roster</button>
+            <button onclick="showSetup()" class="px-8 py-3 bg-zinc-800 rounded-full text-zinc-400 font-bold text-xs uppercase border border-zinc-700">Back to Roster</button>
         </div>
     </div>
 
@@ -80,7 +81,7 @@
         const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS'];
         const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P (No PC)\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        const saved = localStorage.getItem('softball_v11_fairness');
+        const saved = localStorage.getItem('softball_v12_fixed');
         if (saved) {
             const data = JSON.parse(saved);
             document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
@@ -93,7 +94,7 @@
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_v11_fairness', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
+            localStorage.setItem('softball_v12_fixed', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
         }
 
         function startApp() {
@@ -113,7 +114,6 @@
         function autoFillInning() {
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
             
-            // Calculate how many times everyone has sat out TOTAL across ALL innings so far
             const benchCounts = {};
             players.forEach(p => {
                 let satCount = 0;
@@ -131,7 +131,6 @@
                     if (pos === 'P' || pos === 'C') avail = avail.filter(p => !p.toLowerCase().includes("(no pc)"));
                     
                     if (avail.length > 0) {
-                        // Sort by Bench Count (highest first) then by Star status for Infield
                         avail.sort((a, b) => {
                             if (benchCounts[b] !== benchCounts[a]) return benchCounts[b] - benchCounts[a];
                             if (INFIELD.includes(pos)) return (starredPlayers.includes(b) ? 1 : -1);
@@ -157,14 +156,15 @@
 
             if (activeMode === 'fielding') {
                 const currentSet = fieldingData[currentInning] || {};
-                const taken = Object.values(currentSet).filter(n => n !== "");
+                const takenFielders = Object.values(currentSet).filter(n => n !== "");
                 POSITIONS.forEach(pos => {
                     const div = document.createElement('div');
                     div.className = 'card';
                     let opts = `<option value="">-- Bench --</option>`;
                     players.forEach(p => {
                         const noPC = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
-                        if (!noPC && (!taken.includes(p) || currentSet[pos] === p)) {
+                        const alreadyTaken = takenFielders.includes(p) && currentSet[pos] !== p;
+                        if (!noPC && !alreadyTaken) {
                             opts += `<option value="${p}" ${currentSet[pos] === p ? 'selected' : ''}>${p}</option>`;
                         }
                     });
@@ -172,12 +172,19 @@
                     flist.appendChild(div);
                 });
             } else {
+                // FIXED BATTING LOGIC: Remove taken players from other slots
+                const takenBatters = Object.values(battingData).filter(n => n !== "");
                 players.forEach((_, i) => {
-                    const slot = i+1;
+                    const slot = i + 1;
                     const div = document.createElement('div');
                     div.className = 'card';
                     let opts = `<option value="">-- Select --</option>`;
-                    players.forEach(p => opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`);
+                    players.forEach(p => {
+                        const alreadyTaken = takenBatters.includes(p) && battingData[slot] !== p;
+                        if (!alreadyTaken) {
+                            opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`;
+                        }
+                    });
                     div.innerHTML = `<div class="pos-label">#${slot}</div><select onchange="updateBat('${slot}', this.value)">${opts}</select>`;
                     blist.appendChild(div);
                 });
@@ -189,7 +196,7 @@
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
             fieldingData[currentInning][pos] = val;
             if (currentInning === 1 && (pos === 'P' || pos === 'C') && val !== "") {
-                if (confirm(`Lock ${val} for 3 innings?`)) {
+                if (confirm(`Lock ${val} as ${pos} for 3 innings?`)) {
                     for (let i = 2; i <= 3; i++) { if (!fieldingData[i]) fieldingData[i] = {}; fieldingData[i][pos] = val; }
                 }
             }
@@ -203,30 +210,34 @@
             list.innerHTML = "";
             players.forEach(player => {
                 let played = [];
-                let sitCount = 0;
-                let sittingConsecutive = 0;
+                let sitTotal = 0;
+                let sittingNow = 0;
                 
                 for (let i = 1; i <= 6; i++) {
                     const inn = fieldingData[i] || {};
                     let found = false;
                     for (const pos in inn) { if (inn[pos] === player) { played.push(pos); found = true; } }
-                    if (!found) { sitCount++; sittingConsecutive++; } else { sittingConsecutive = 0; }
+                    if (!found) { sitTotal++; sittingNow++; } else { sittingNow = 0; }
                 }
 
                 const isStarred = starredPlayers.includes(player);
                 const row = document.createElement('div');
                 row.className = "flex justify-between items-center bg-zinc-900/40 p-2 rounded-lg mb-1 border border-zinc-800/50";
                 row.innerHTML = `
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 text-left">
                         <button onclick="toggleStar('${player}')" class="text-sm ${isStarred ? 'star-active' : 'text-zinc-700'}">★</button>
-                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player} <span class="text-[9px] text-zinc-600 font-normal">(${sitCount} sits)</span> ${sittingConsecutive >= 2 ? '<span class="bench-warn">!! CONSECUTIVE</span>' : ''}</div>
+                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">
+                            ${player} 
+                            <span class="text-[9px] opacity-40 font-normal">(${sitTotal} sits)</span>
+                            ${sittingNow >= 2 ? '<span class="bench-warn">!! CONSECUTIVE</span>' : ''}
+                        </div>
                     </div>
-                    <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
+                    <div class="flex flex-wrap gap-1 justify-end">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
                 list.appendChild(row);
             });
         }
 
-        function clearData() { if (confirm("Wipe all?")) { localStorage.clear(); location.reload(); } }
+        function clearData() { if (confirm("Clear all data for a new game?")) { localStorage.clear(); location.reload(); } }
     </script>
 </body>
 </html>
