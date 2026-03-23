@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Softball Lineup Pro - Fixed</title>
+    <title>Softball Lineup Pro - Smart Coach</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -15,39 +15,40 @@
         .hidden { display: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .badge-pos { background-color: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 4px; }
+        .star-btn { color: #52525b; transition: color 0.2s; }
+        .star-active { color: #facc15; }
     </style>
 </head>
 <body class="p-4 max-w-md mx-auto pb-32">
 
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-xl font-black text-orange-600 italic tracking-tighter">LINEUP PRO</h1>
-        <button onclick="clearData()" class="text-[10px] font-bold text-zinc-600 uppercase border border-zinc-800 px-2 py-1 rounded">Reset All</button>
+        <button onclick="clearData()" class="text-[10px] font-bold text-zinc-600 uppercase border border-zinc-800 px-2 py-1 rounded">Reset Game</button>
     </div>
 
     <div id="setup-view">
-        <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4">
-            <h3 class="text-xs font-bold text-blue-400 uppercase mb-1">Coach Tip</h3>
-            <p class="text-[11px] text-blue-200/70">Add <b>(No PC)</b> to players who should never Pitch or Catch.</p>
-        </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm"></textarea>
-        <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95">Start Game Plan</button>
+        <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg">Start Game Plan</button>
     </div>
 
     <div id="main-view" class="hidden">
         
         <div class="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 mb-6">
             <button id="btn-fielding" onclick="setMode('fielding')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase tab-active">Fielding</button>
-            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting Order</button>
+            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting</button>
         </div>
 
         <div id="fielding-container">
-            <div id="inning-tabs" class="flex gap-2 overflow-x-auto no-scrollbar mb-6">
-                <button onclick="setInning(1)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold tab-active">1</button>
-                <button onclick="setInning(2)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">2</button>
-                <button onclick="setInning(3)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">3</button>
-                <button onclick="setInning(4)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">4</button>
-                <button onclick="setInning(5)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">5</button>
-                <button onclick="setInning(6)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">6</button>
+            <div class="flex justify-between items-center mb-4">
+                <div id="inning-tabs" class="flex gap-2 overflow-x-auto no-scrollbar">
+                    <button onclick="setInning(1)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold tab-active">1</button>
+                    <button onclick="setInning(2)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">2</button>
+                    <button onclick="setInning(3)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">3</button>
+                    <button onclick="setInning(4)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">4</button>
+                    <button onclick="setInning(5)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">5</button>
+                    <button onclick="setInning(6)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">6</button>
+                </div>
+                <button onclick="autoFillInning()" class="bg-zinc-800 text-[10px] font-bold px-3 py-2 rounded-lg border border-zinc-700 text-orange-400">AUTO-FILL</button>
             </div>
             <div id="fielding-list"></div>
         </div>
@@ -57,7 +58,7 @@
         </div>
         
         <div class="mt-12 pt-6 border-t border-zinc-800">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-4 italic text-center">Defensive Summary (All Innings)</h3>
+            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic text-center">Defensive Summary & Performance</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
@@ -68,26 +69,26 @@
 
     <script>
         let players = [];
+        let starredPlayers = []; // Performance-based
         let currentInning = 1;
         let activeMode = 'fielding';
         let fieldingData = {}; 
         let battingData = {};
         const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'LC', 'RC', 'RF'];
-        const DEFAULT_ROSTER = `Charlotte D\n(4th)Anaya P\nEmma P\nGenevieve H\n(4th)Gianna C\nLily P (No PC)\nMarielle N\nReagan S\n(4th)Sienna T\n(4th)Taylor G\nTeagan B\n(4th)Teagan M`;
+        const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS'];
 
-        const saved = localStorage.getItem('softball_v7_final');
+        const saved = localStorage.getItem('softball_smart_v8');
         if (saved) {
             const data = JSON.parse(saved);
-            document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
+            document.getElementById('roster-input').value = data.roster || "";
             fieldingData = data.fielding || {};
             battingData = data.batting || {};
-        } else {
-            document.getElementById('roster-input').value = DEFAULT_ROSTER;
+            starredPlayers = data.stars || [];
         }
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_v7_final', JSON.stringify({ roster, fielding: fieldingData, batting: battingData }));
+            localStorage.setItem('softball_smart_v8', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
         }
 
         function startApp() {
@@ -99,36 +100,54 @@
             save();
         }
 
-        function showSetup() {
-            document.getElementById('setup-view').classList.remove('hidden');
-            document.getElementById('main-view').classList.add('hidden');
+        function showSetup() { document.getElementById('setup-view').classList.remove('hidden'); document.getElementById('main-view').classList.add('hidden'); }
+        function setInning(n) { currentInning = n; render(); }
+        function setMode(m) { activeMode = m; render(); }
+
+        function toggleStar(player) {
+            if (starredPlayers.includes(player)) starredPlayers = starredPlayers.filter(p => p !== player);
+            else starredPlayers.push(player);
+            save(); render();
         }
 
-        function setInning(n) {
-            currentInning = n;
-            render();
-        }
+        function autoFillInning() {
+            if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
+            const taken = Object.values(fieldingData[currentInning]);
+            
+            POSITIONS.forEach(pos => {
+                if (!fieldingData[currentInning][pos]) {
+                    // Find available players and sort by least innings played total
+                    let available = players.filter(p => !Object.values(fieldingData[currentInning]).includes(p));
+                    
+                    // Filter for safety/logic
+                    if (pos === 'P' || pos === 'C') {
+                        available = available.filter(p => !p.toLowerCase().includes("(no pc)"));
+                    }
 
-        function setMode(m) {
-            activeMode = m;
-            document.getElementById('btn-fielding').classList.toggle('tab-active', m === 'fielding');
-            document.getElementById('btn-batting').classList.toggle('tab-active', m === 'batting');
-            document.getElementById('fielding-container').classList.toggle('hidden', m === 'batting');
-            document.getElementById('batting-container').classList.toggle('hidden', m === 'fielding');
-            render();
+                    if (available.length > 0) {
+                        // Priority: If Infield position, check for Starred players first
+                        let candidates = (INFIELD.includes(pos)) 
+                            ? available.sort((a, b) => (starredPlayers.includes(b) ? 1 : -1))
+                            : available;
+                        
+                        fieldingData[currentInning][pos] = candidates[0];
+                    }
+                }
+            });
+            save(); render();
         }
 
         function render() {
-            // Update Tab UI
-            document.querySelectorAll('.inn-btn').forEach((btn, idx) => {
-                btn.classList.toggle('tab-active', (idx + 1) === currentInning);
-                btn.classList.toggle('text-zinc-500', (idx + 1) !== currentInning);
-            });
+            document.getElementById('btn-fielding').classList.toggle('tab-active', activeMode === 'fielding');
+            document.getElementById('btn-batting').classList.toggle('tab-active', activeMode === 'batting');
+            document.getElementById('fielding-container').classList.toggle('hidden', activeMode === 'batting');
+            document.getElementById('batting-container').classList.toggle('hidden', activeMode === 'fielding');
+            
+            document.querySelectorAll('.inn-btn').forEach((btn, idx) => btn.classList.toggle('tab-active', (idx + 1) === currentInning));
 
             const fieldList = document.getElementById('fielding-list');
             const battList = document.getElementById('batting-list');
-            fieldList.innerHTML = "";
-            battList.innerHTML = "";
+            fieldList.innerHTML = ""; battList.innerHTML = "";
 
             if (activeMode === 'fielding') {
                 const currentSet = fieldingData[currentInning] || {};
@@ -136,31 +155,24 @@
                 POSITIONS.forEach(pos => {
                     const div = document.createElement('div');
                     div.className = 'card';
-                    let options = `<option value="">-- Bench --</option>`;
+                    let opts = `<option value="">-- Bench --</option>`;
                     players.forEach(p => {
                         const isRestricted = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
-                        const isTaken = taken.includes(p) && currentSet[pos] !== p;
-                        if (!isRestricted && !isTaken) {
-                            options += `<option value="${p}" ${currentSet[pos] === p ? 'selected' : ''}>${p}</option>`;
+                        if (!isRestricted && (!taken.includes(p) || currentSet[pos] === p)) {
+                            opts += `<option value="${p}" ${currentSet[pos] === p ? 'selected' : ''}>${p}</option>`;
                         }
                     });
-                    div.innerHTML = `<div class="pos-label">${pos}</div><select onchange="updateField('${pos}', this.value)">${options}</select>`;
+                    div.innerHTML = `<div class="pos-label">${pos}</div><select onchange="updateField('${pos}', this.value)">${opts}</select>`;
                     fieldList.appendChild(div);
                 });
             } else {
-                const taken = Object.values(battingData);
                 players.forEach((_, i) => {
                     const slot = i + 1;
                     const div = document.createElement('div');
                     div.className = 'card';
-                    let options = `<option value="">-- Select --</option>`;
-                    players.forEach(p => {
-                        const isTaken = taken.includes(p) && battingData[slot] !== p;
-                        if (!isTaken) {
-                            options += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`;
-                        }
-                    });
-                    div.innerHTML = `<div class="pos-label">#${slot}</div><select onchange="updateBat('${slot}', this.value)">${options}</select>`;
+                    let opts = `<option value="">-- Select --</option>`;
+                    players.forEach(p => opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`);
+                    div.innerHTML = `<div class="pos-label">#${slot}</div><select onchange="updateBat('${slot}', this.value)">${opts}</select>`;
                     battList.appendChild(div);
                 });
             }
@@ -171,20 +183,14 @@
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
             fieldingData[currentInning][pos] = val;
             if (currentInning === 1 && (pos === 'P' || pos === 'C') && val !== "") {
-                if (confirm(`Keep ${val} as ${pos} for innings 1-4?`)) {
-                    for (let i = 2; i <= 4; i++) {
-                        if (!fieldingData[i]) fieldingData[i] = {};
-                        fieldingData[i][pos] = val;
-                    }
+                if (confirm(`Lock ${val} for 3 innings?`)) {
+                    for (let i = 2; i <= 3; i++) { if (!fieldingData[i]) fieldingData[i] = {}; fieldingData[i][pos] = val; }
                 }
             }
             save(); render();
         }
 
-        function updateBat(slot, val) {
-            battingData[slot] = val;
-            save(); render();
-        }
+        function updateBat(slot, val) { battingData[slot] = val; save(); render(); }
 
         function updateTracker() {
             const list = document.getElementById('tracker-list');
@@ -195,15 +201,20 @@
                     const inn = fieldingData[i] || {};
                     for (const pos in inn) { if (inn[pos] === player) played.push(pos); }
                 }
+                const isStarred = starredPlayers.includes(player);
                 const row = document.createElement('div');
                 row.className = "flex justify-between items-center bg-zinc-900/40 p-2 rounded-lg mb-1 border border-zinc-800/50";
-                row.innerHTML = `<div class="text-[11px] font-bold text-zinc-400">${player}</div>
-                                 <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleStar('${player}')" class="star-btn ${isStarred ? 'star-active' : ''}">★</button>
+                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
                 list.appendChild(row);
             });
         }
 
-        function clearData() { if (confirm("Wipe everything?")) { localStorage.clear(); location.reload(); } }
+        function clearData() { if (confirm("Wipe?")) { localStorage.clear(); location.reload(); } }
     </script>
 </body>
 </html>
