@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Softball Lineup Pro + Tracker</title>
+    <title>Softball Lineup Pro + Safety Locks</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #09090b; color: #f4f4f5; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -14,6 +14,7 @@
         .tab-active { background-color: #ea580c !important; color: white !important; border-color: #f97316 !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .badge-pos { background-color: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 4px; }
+        .lock-indicator { color: #22c55e; font-size: 10px; font-weight: bold; margin-left: 4px; }
     </style>
 </head>
 <body class="p-4 max-w-md mx-auto pb-32">
@@ -24,18 +25,15 @@
     </div>
 
     <div id="setup-view">
-        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">Team Roster</label>
+        <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4">
+            <h3 class="text-xs font-bold text-blue-400 uppercase mb-1">Safety Lock Tip</h3>
+            <p class="text-[11px] text-blue-200/70 leading-relaxed">To prevent a player from ever Pitching or Catching, add <b>(No PC)</b> after their name below.</p>
+        </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm" placeholder="Enter names..."></textarea>
         <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform">Save & Start Game</button>
     </div>
 
     <div id="main-view" class="hidden">
-        
-        <div class="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 mb-4">
-            <button id="btn-fielding" onclick="setMode('fielding')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase tab-active">Fielding</button>
-            <button id="btn-batting" onclick="setMode('batting')" class="flex-1 py-2 rounded-lg font-bold text-xs uppercase text-zinc-500">Batting Order</button>
-        </div>
-
         <div id="inning-tabs" class="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-1">
             <button onclick="setInning(1)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold tab-active">1</button>
             <button onclick="setInning(2)" class="inn-btn flex-shrink-0 w-12 h-12 rounded-xl border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">2</button>
@@ -48,7 +46,7 @@
         <div id="lineup-container"></div>
         
         <div id="tracker-section" class="mt-8 pt-6 border-t border-zinc-800">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-4 italic">Defensive Playing Time Summary</h3>
+            <h3 class="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-4 italic text-center">Defensive Playing Time Summary</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
@@ -60,25 +58,22 @@
     <script>
         let players = [];
         let currentInning = 1;
-        let activeMode = 'fielding';
         let assignments = {}; 
-        let battingOrder = {};
         const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'LC', 'RC', 'RF'];
-        const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
+        const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P (No PC)\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        const saved = localStorage.getItem('softball_tracker_v5');
+        const saved = localStorage.getItem('softball_lock_v6');
         if (saved) {
             const data = JSON.parse(saved);
             document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
             assignments = data.assignments || {};
-            battingOrder = data.batting || {};
         } else {
             document.getElementById('roster-input').value = DEFAULT_ROSTER;
         }
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_tracker_v5', JSON.stringify({ roster, assignments, batting: battingOrder }));
+            localStorage.setItem('softball_lock_v6', JSON.stringify({ roster, assignments }));
         }
 
         function startApp() {
@@ -100,14 +95,6 @@
             render();
         }
 
-        function setMode(m) {
-            activeMode = m;
-            document.getElementById('btn-fielding').classList.toggle('tab-active', m === 'fielding');
-            document.getElementById('btn-batting').classList.toggle('tab-active', m === 'batting');
-            document.getElementById('inning-tabs').classList.toggle('hidden', m === 'batting');
-            render();
-        }
-
         function render() {
             document.querySelectorAll('.inn-btn').forEach((btn, idx) => {
                 btn.classList.toggle('tab-active', (idx + 1) === currentInning);
@@ -117,35 +104,46 @@
             const container = document.getElementById('lineup-container');
             container.innerHTML = "";
             
-            const currentSet = activeMode === 'fielding' ? (assignments[currentInning] || {}) : battingOrder;
+            const currentSet = assignments[currentInning] || {};
             const taken = Object.values(currentSet);
-            const itemsToLoop = activeMode === 'fielding' ? POSITIONS : Array.from({length: players.length || 12}, (_, i) => i + 1);
 
-            itemsToLoop.forEach(item => {
+            POSITIONS.forEach(pos => {
                 const div = document.createElement('div');
                 div.className = 'card';
-                const label = `<div class="pos-label">${activeMode === 'fielding' ? item : '#' + item}</div>`;
+                const label = `<div class="pos-label">${pos}</div>`;
                 let options = `<option value="">-- Bench --</option>`;
+                
                 players.forEach(p => {
-                    if (!taken.includes(p) || currentSet[item] === p) {
-                        const selected = currentSet[item] === p ? 'selected' : '';
+                    // Safety Logic: If name has "(No PC)", hide them from P and C dropdowns
+                    const isRestricted = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
+                    const isPickedElsewhere = taken.includes(p) && currentSet[pos] !== p;
+                    
+                    if (!isRestricted && !isPickedElsewhere) {
+                        const selected = currentSet[pos] === p ? 'selected' : '';
                         options += `<option value="${p}" ${selected}>${p}</option>`;
                     }
                 });
-                div.innerHTML = `${label}<select onchange="updateVal('${item}', this.value)">${options}</select>`;
+                div.innerHTML = `${label}<select onchange="handleAssignment('${pos}', this.value)">${options}</select>`;
                 container.appendChild(div);
             });
 
             updateTracker();
         }
 
-        function updateVal(key, val) {
-            if (activeMode === 'fielding') {
-                if (!assignments[currentInning]) assignments[currentInning] = {};
-                assignments[currentInning][key] = val;
-            } else {
-                battingOrder[key] = val;
+        function handleAssignment(pos, val) {
+            if (!assignments[currentInning]) assignments[currentInning] = {};
+            assignments[currentInning][pos] = val;
+
+            // Automation Logic: If P or C is assigned in Inning 1, ask to lock for 4 innings
+            if (currentInning === 1 && (pos === 'P' || pos === 'C') && val !== "") {
+                if (confirm(`Lock ${val} as ${pos === 'P' ? 'Pitcher' : 'Catcher'} for the first 4 innings?`)) {
+                    for (let i = 2; i <= 4; i++) {
+                        if (!assignments[i]) assignments[i] = {};
+                        assignments[i][pos] = val;
+                    }
+                }
             }
+            
             save();
             render();
         }
@@ -153,35 +151,21 @@
         function updateTracker() {
             const list = document.getElementById('tracker-list');
             list.innerHTML = "";
-
             players.forEach(player => {
-                let playedInnings = [];
+                let played = [];
                 for (let i = 1; i <= 6; i++) {
                     const inn = assignments[i] || {};
-                    for (const pos in inn) {
-                        if (inn[pos] === player) playedInnings.push(pos);
-                    }
+                    for (const pos in inn) { if (inn[pos] === player) played.push(pos); }
                 }
-
                 const row = document.createElement('div');
-                row.className = "flex justify-between items-start bg-zinc-900/30 p-2 rounded-lg border border-zinc-800/50";
-                
-                const namePart = `<div class="text-xs font-bold text-zinc-300">${player}</div>`;
-                const posPart = `<div class="flex flex-wrap gap-1 justify-end max-w-[200px]">
-                    ${playedInnings.map(p => `<span class="badge-pos">${p}</span>`).join('') || '<span class="text-[9px] text-zinc-700 font-bold uppercase">All Bench</span>'}
-                </div>`;
-                
-                row.innerHTML = `${namePart}${posPart}`;
+                row.className = "flex justify-between items-center bg-zinc-900/40 p-2 rounded-lg mb-1 border border-zinc-800/50";
+                row.innerHTML = `<div class="text-[11px] font-bold text-zinc-400">${player}</div>
+                                 <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
                 list.appendChild(row);
             });
         }
 
-        function clearData() {
-            if (confirm("Reset game?")) {
-                localStorage.removeItem('softball_tracker_v5');
-                location.reload();
-            }
-        }
+        function clearData() { if (confirm("Wipe all innings?")) { localStorage.removeItem('softball_lock_v6'); location.reload(); } }
     </script>
 </body>
 </html>
