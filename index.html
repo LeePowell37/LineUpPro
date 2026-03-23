@@ -15,8 +15,8 @@
         .hidden { display: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .badge-pos { background-color: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 4px; }
-        .star-btn { color: #52525b; transition: color 0.2s; }
         .star-active { color: #facc15; }
+        .bench-warn { color: #ef4444; font-size: 9px; font-weight: bold; margin-left: 4px; }
     </style>
 </head>
 <body class="p-4 max-w-md mx-auto pb-32">
@@ -27,6 +27,9 @@
     </div>
 
     <div id="setup-view">
+        <div class="bg-blue-900/20 border border-blue-800/50 p-4 rounded-2xl mb-4 text-[11px] text-blue-200/70">
+            <b>Safety:</b> Add <b>(No PC)</b> to players who cannot Pitch or Catch.
+        </div>
         <textarea id="roster-input" class="w-full h-80 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 outline-none focus:border-orange-600 text-sm"></textarea>
         <button onclick="startApp()" class="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-lg">Start Game Plan</button>
     </div>
@@ -48,7 +51,7 @@
                     <button onclick="setInning(5)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">5</button>
                     <button onclick="setInning(6)" class="inn-btn w-10 h-10 rounded-lg border border-zinc-800 bg-zinc-900 font-bold text-zinc-500">6</button>
                 </div>
-                <button onclick="autoFillInning()" class="bg-zinc-800 text-[10px] font-bold px-3 py-2 rounded-lg border border-zinc-700 text-orange-400">AUTO-FILL</button>
+                <button onclick="autoFillInning()" class="bg-zinc-800 text-[9px] font-bold px-3 py-2 rounded-lg border border-zinc-700 text-orange-400">AUTO-FILL</button>
             </div>
             <div id="fielding-list"></div>
         </div>
@@ -57,8 +60,8 @@
             <div id="batting-list"></div>
         </div>
         
-        <div class="mt-12 pt-6 border-t border-zinc-800">
-            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic text-center">Defensive Summary & Performance</h3>
+        <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
+            <h3 class="text-[10px] font-black text-orange-500 uppercase mb-4 italic">Playing Time & Stars</h3>
             <div id="tracker-list" class="space-y-2"></div>
         </div>
 
@@ -69,26 +72,29 @@
 
     <script>
         let players = [];
-        let starredPlayers = []; // Performance-based
+        let starredPlayers = [];
         let currentInning = 1;
         let activeMode = 'fielding';
         let fieldingData = {}; 
         let battingData = {};
         const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'LC', 'RC', 'RF'];
         const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS'];
+        const DEFAULT_ROSTER = `Charlotte D\nAnaya P (4th)\nEmma P\nGenevieve H\nGianna C (4th)\nLily P (No PC)\nMarielle N\nReagan S\nSienna T (4th)\nTaylor G (4th)\nTeagan B\nTeagan M (4th)`;
 
-        const saved = localStorage.getItem('softball_smart_v8');
+        const saved = localStorage.getItem('softball_smart_v9');
         if (saved) {
             const data = JSON.parse(saved);
-            document.getElementById('roster-input').value = data.roster || "";
+            document.getElementById('roster-input').value = data.roster || DEFAULT_ROSTER;
             fieldingData = data.fielding || {};
             battingData = data.batting || {};
             starredPlayers = data.stars || [];
+        } else {
+            document.getElementById('roster-input').value = DEFAULT_ROSTER;
         }
 
         function save() {
             const roster = document.getElementById('roster-input').value;
-            localStorage.setItem('softball_smart_v8', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
+            localStorage.setItem('softball_smart_v9', JSON.stringify({ roster, fielding: fieldingData, batting: battingData, stars: starredPlayers }));
         }
 
         function startApp() {
@@ -103,34 +109,22 @@
         function showSetup() { document.getElementById('setup-view').classList.remove('hidden'); document.getElementById('main-view').classList.add('hidden'); }
         function setInning(n) { currentInning = n; render(); }
         function setMode(m) { activeMode = m; render(); }
-
-        function toggleStar(player) {
-            if (starredPlayers.includes(player)) starredPlayers = starredPlayers.filter(p => p !== player);
-            else starredPlayers.push(player);
-            save(); render();
-        }
+        function toggleStar(p) { if(starredPlayers.includes(p)) starredPlayers = starredPlayers.filter(x => x !== p); else starredPlayers.push(p); save(); render(); }
 
         function autoFillInning() {
             if (!fieldingData[currentInning]) fieldingData[currentInning] = {};
-            const taken = Object.values(fieldingData[currentInning]);
-            
             POSITIONS.forEach(pos => {
                 if (!fieldingData[currentInning][pos]) {
-                    // Find available players and sort by least innings played total
-                    let available = players.filter(p => !Object.values(fieldingData[currentInning]).includes(p));
+                    const taken = Object.values(fieldingData[currentInning]);
+                    let avail = players.filter(p => !taken.includes(p));
+                    if (pos === 'P' || pos === 'C') avail = avail.filter(p => !p.toLowerCase().includes("(no pc)"));
                     
-                    // Filter for safety/logic
-                    if (pos === 'P' || pos === 'C') {
-                        available = available.filter(p => !p.toLowerCase().includes("(no pc)"));
-                    }
-
-                    if (available.length > 0) {
-                        // Priority: If Infield position, check for Starred players first
-                        let candidates = (INFIELD.includes(pos)) 
-                            ? available.sort((a, b) => (starredPlayers.includes(b) ? 1 : -1))
-                            : available;
-                        
-                        fieldingData[currentInning][pos] = candidates[0];
+                    if (avail.length > 0) {
+                        // Priority to Starred for Infield
+                        if (INFIELD.includes(pos)) {
+                            avail.sort((a, b) => (starredPlayers.includes(b) ? 1 : -1));
+                        }
+                        fieldingData[currentInning][pos] = avail[0];
                     }
                 }
             });
@@ -142,12 +136,11 @@
             document.getElementById('btn-batting').classList.toggle('tab-active', activeMode === 'batting');
             document.getElementById('fielding-container').classList.toggle('hidden', activeMode === 'batting');
             document.getElementById('batting-container').classList.toggle('hidden', activeMode === 'fielding');
-            
-            document.querySelectorAll('.inn-btn').forEach((btn, idx) => btn.classList.toggle('tab-active', (idx + 1) === currentInning));
+            document.querySelectorAll('.inn-btn').forEach((btn, i) => btn.classList.toggle('tab-active', (i+1) === currentInning));
 
-            const fieldList = document.getElementById('fielding-list');
-            const battList = document.getElementById('batting-list');
-            fieldList.innerHTML = ""; battList.innerHTML = "";
+            const flist = document.getElementById('fielding-list');
+            const blist = document.getElementById('batting-list');
+            flist.innerHTML = ""; blist.innerHTML = "";
 
             if (activeMode === 'fielding') {
                 const currentSet = fieldingData[currentInning] || {};
@@ -157,23 +150,23 @@
                     div.className = 'card';
                     let opts = `<option value="">-- Bench --</option>`;
                     players.forEach(p => {
-                        const isRestricted = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
-                        if (!isRestricted && (!taken.includes(p) || currentSet[pos] === p)) {
+                        const noPC = p.toLowerCase().includes("(no pc)") && (pos === 'P' || pos === 'C');
+                        if (!noPC && (!taken.includes(p) || currentSet[pos] === p)) {
                             opts += `<option value="${p}" ${currentSet[pos] === p ? 'selected' : ''}>${p}</option>`;
                         }
                     });
                     div.innerHTML = `<div class="pos-label">${pos}</div><select onchange="updateField('${pos}', this.value)">${opts}</select>`;
-                    fieldList.appendChild(div);
+                    flist.appendChild(div);
                 });
             } else {
                 players.forEach((_, i) => {
-                    const slot = i + 1;
+                    const slot = i+1;
                     const div = document.createElement('div');
                     div.className = 'card';
                     let opts = `<option value="">-- Select --</option>`;
                     players.forEach(p => opts += `<option value="${p}" ${battingData[slot] === p ? 'selected' : ''}>${p}</option>`);
                     div.innerHTML = `<div class="pos-label">#${slot}</div><select onchange="updateBat('${slot}', this.value)">${opts}</select>`;
-                    battList.appendChild(div);
+                    blist.appendChild(div);
                 });
             }
             updateTracker();
@@ -190,31 +183,38 @@
             save(); render();
         }
 
-        function updateBat(slot, val) { battingData[slot] = val; save(); render(); }
+        function updateBat(s, v) { battingData[s] = v; save(); render(); }
 
         function updateTracker() {
             const list = document.getElementById('tracker-list');
             list.innerHTML = "";
             players.forEach(player => {
                 let played = [];
-                for (let i = 1; i <= 6; i++) {
+                let benchCount = 0;
+                let sittingNow = 0;
+                
+                for (let i = 1; i <= currentInning; i++) {
                     const inn = fieldingData[i] || {};
-                    for (const pos in inn) { if (inn[pos] === player) played.push(pos); }
+                    let found = false;
+                    for (const pos in inn) { if (inn[pos] === player) { played.push(pos); found = true; } }
+                    if (!found) sittingNow++; else sittingNow = 0;
+                    if (!found) benchCount++;
                 }
+
                 const isStarred = starredPlayers.includes(player);
                 const row = document.createElement('div');
                 row.className = "flex justify-between items-center bg-zinc-900/40 p-2 rounded-lg mb-1 border border-zinc-800/50";
                 row.innerHTML = `
                     <div class="flex items-center gap-2">
-                        <button onclick="toggleStar('${player}')" class="star-btn ${isStarred ? 'star-active' : ''}">★</button>
-                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player}</div>
+                        <button onclick="toggleStar('${player}')" class="text-sm ${isStarred ? 'star-active' : 'text-zinc-700'}">★</button>
+                        <div class="text-[11px] font-bold ${isStarred ? 'text-yellow-500' : 'text-zinc-400'}">${player} ${sittingNow >= 2 ? '<span class="bench-warn">!! BENCH</span>' : ''}</div>
                     </div>
                     <div class="flex flex-wrap gap-1">${played.map(p => `<span class="badge-pos">${p}</span>`).join('')}</div>`;
                 list.appendChild(row);
             });
         }
 
-        function clearData() { if (confirm("Wipe?")) { localStorage.clear(); location.reload(); } }
+        function clearData() { if (confirm("Wipe all?")) { localStorage.clear(); location.reload(); } }
     </script>
 </body>
 </html>
